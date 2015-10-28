@@ -1,0 +1,207 @@
+/*
+ *  Please don't give empty lines in code  else scanning exception will occur(NoSuchElementException)
+ *  movi --> can take max immediate value =511
+ *  mov1i will put immediate value in register 1 
+ *  register no. 7 is used as jump register
+ *  Only first 64 locations are for memory, rest are used by stack pointer
+ *  SLT r1,r2   compares r1 and r2 ,if val(r1) < val(r2) then r0 =1,else r0=0
+ *  beq  label      check the contents of r0 , if val(r0) = 1 then goto label 
+ */
+
+package coa_pipelining;
+
+import java.util.NoSuchElementException;
+import java.util.Scanner;
+
+public class ToMachine {
+	
+	static label[] labels =null;
+	static  int lAdd = 0 ;
+	static int lCount = 0;
+
+	public String AssemblyToMachine(String str) {
+		str = str.toUpperCase();
+		
+		Scanner in = new Scanner(str);
+		
+		String opcode = in.next();		
+		
+		String restCode = "";
+		try{
+			restCode = in.nextLine();
+		}catch(NoSuchElementException e){
+			
+		}
+		in.close();
+		return AssemblyDecoder(opcode, restCode);
+
+	}
+
+	private String AssemblyDecoder(String opcode, String restCode) {
+		
+		Scanner in1 = new Scanner(restCode);
+		String machineIns = "";
+		int[] op = new int[3];
+		switch (opcode) {
+
+		case "ADD":
+		case "SUB":
+		case "MUL":
+		case "DIV":
+			if (opcode.contentEquals("ADD"))
+				machineIns += "0000";
+			if (opcode.contentEquals("SUB"))
+				machineIns += "0001";
+			if (opcode.contentEquals("MUL"))
+				machineIns += "0010";
+			if (opcode.contentEquals("DIV"))
+				machineIns += "0011";
+
+			op[0] = in1.nextInt();
+			op[1] = in1.nextInt();
+			op[2] = in1.nextInt();
+			for (int i = 0; i < 3; i++)
+				machineIns += deciToBinary(op[i], 3); // Second argument is to
+														// take output in 3
+														// digits
+			machineIns += "000";
+			break;
+
+		case "SLL":
+		case "SLR":
+			if (opcode.contentEquals("SLL"))
+				machineIns += "0100";
+			if (opcode.contentEquals("SLR"))
+				machineIns += "0101";
+
+			op[0] = in1.nextInt();
+			op[1] = in1.nextInt();
+			op[2] = in1.nextInt();
+			for (int i = 0; i < 2; i++)
+				machineIns += deciToBinary(op[i], 3);
+			machineIns += deciToBinary(op[2], 6);// Second argument is to take
+													// output in 3 digits
+
+			break;
+
+		case "MOV1I":
+			machineIns += "0110";
+			int val = in1.nextInt();
+			machineIns += deciToBinary(val, 12);
+			break;
+			
+		case "JMP":
+		case "JAL":
+		case "BEQ":
+			if(opcode.contentEquals("JMP"))machineIns+="0111";
+			if(opcode.contentEquals("JAL"))machineIns+="1000";
+			if(opcode.contentEquals("BEQ"))machineIns+="1110";
+			String label = in1.next();
+			int addValue = lAdd;
+			for(int ii=0;ii<lCount;ii++){				
+				if(labels[ii].lName.contentEquals(label))
+				{
+					addValue=labels[ii].lAddress;
+					break;
+					
+				}
+			}
+			machineIns+=deciToBinary(addValue, 12);
+			break;
+
+			
+			
+		case "MOVR":
+			machineIns += "1001";
+			op[0] = in1.nextInt();
+			op[1] = in1.nextInt();
+			for (int i = 0; i < 2; i++)
+				machineIns += deciToBinary(op[i], 3);
+			machineIns += "000000";
+			break;
+
+		case "MOVI":
+			machineIns += "1010";
+			op[0] = in1.nextInt();
+			op[1] = in1.nextInt();
+			machineIns += deciToBinary(op[0], 3);
+			machineIns += deciToBinary(op[1], 9);
+			break;
+
+		case "JR":
+			machineIns += "1011";
+			op[0] = in1.nextInt();
+			machineIns += deciToBinary(op[0], 3);
+			machineIns += deciToBinary(0, 9);
+			break;
+			
+		case "LD":
+		case "ST":
+			if(opcode.contentEquals("LD"))machineIns+="1100";
+			if(opcode.contentEquals("ST"))machineIns+="1101";
+			op[0] = in1.nextInt();
+			op[1] = in1.nextInt();
+			machineIns+=deciToBinary(op[0], 3);
+			machineIns+=deciToBinary(op[1], 6);
+			machineIns+="000";
+			break;
+		
+			
+		case "SLT":
+			machineIns+="1111";
+			op[0] = in1.nextInt();
+			op[1] = in1.nextInt();
+			machineIns+=deciToBinary(op[0], 3);
+			machineIns+=deciToBinary(op[1], 3);
+			machineIns+="000000";
+			break;
+			
+			
+		 default:
+			 
+			 machineIns+=deciToBinary(65535,16);   // whole instruction consist of 1's only
+			 break;
+		
+		}
+		in1.close();
+		return machineIns;
+	}
+
+	private String deciToBinary(int i, int j) {
+		// TODO Auto-generated method stub
+		String str = "";
+		int n = Integer.toBinaryString(i).length();
+		for (int ii = 0; ii < j - n; ii++)
+			str += "0";
+		str += Integer.toBinaryString(i);
+		return str;
+	}
+
+	public void fillLabels(String str) {
+		// TODO Auto-generated method stub
+		lAdd++;
+		str = str.toUpperCase();
+		Scanner ume = new Scanner(str);
+		String opcode="",restcode="";
+		opcode = ume.next();
+		try{
+			restcode = ume.nextLine();
+		}catch(NoSuchElementException e){
+			restcode="";
+		}
+		if(restcode.contentEquals(""))
+		{
+			labels[lCount] = new label();
+			 labels[lCount].lName=opcode;
+			 labels[lCount].lAddress=lAdd;
+			 lCount++;	
+		}
+		ume.close();
+	}
+}
+
+
+class label {
+	String lName;
+	int lAddress;
+}
