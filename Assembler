@@ -1,0 +1,296 @@
+/*
+ * COA Pipelining assignment 
+ * Code written by- Umesh Poswal(13CS01010)
+ * 
+ * Code description:
+ *   Given code take an assembly file as an input, then convert the given assembly code into the object code(machine code), saves
+ *   object code into another file called output file(here).
+ *   
+ *  
+ *   Description of my ISA:
+ *     1. Total number of registers is 10 including SP and PC
+ *     2. 8 GPRs are numbered as 0,1,2,3,...,7
+ *     4. Memory size is 64, processor stack size is 64
+ *     5. Each instruction size is 16 bits
+ *     6. There are a total of 16 instructions
+ *     7. First four bits(opcode) determine the operation to be performed
+ *     8. Depending upon the operation other bits are given values as:
+ *        Note: Register numbers used in below examples are for reference only, you can use any register out of 8 registers
+ *        
+ *          1. ADD 5 1 4           R5 = R1 + R4    three bits to determine each register, so bits used are 13,rest 3 bits are 000
+ *          2. SUB 4 5 2           R4 = R5 - R2         same as for addition
+ *          3. Similarly           MUL and DIV    are used to multiply and divide respectively 
+ *          4. SLL 4 5 imm.value     (Shift logical left) R5 value is logically shift by imm.value and result stored in reg.4
+ *          5. Similarly SLR        to shift right
+ *          6. MOV1I  imm.value      12 bit imm.value(12 bits) is given to register number 1
+ *          7. JMP label           jump to label(12 bits) 
+ *          8. JAL label           jump to label and link to present PC address, register 7 is used as linking register
+ *          9. BEQ label           jump to label if R0 = 1
+ *         10. MOVR 1 2            Content of R2 given to R1, i.e R1=R2  (rest 6 bits are 0s)
+ *         11. MOVI 5 imm.value    imm.value(9 bits) is given to R5
+ *         12. JR 7                Jump to address stored in R7
+ *         13. LD 5 location       load value in R5 from memory location 'location'(6 bits) rest 3 bits are 0s
+ *         14. ST 5 location       store value R5 at memory location 'location'
+ *         15. SLT 4 5             (Set less than) if R4 < R5 then R0 = 1,else R0 = 0  rest 6 bits are 0s
+ *          
+ * 
+ * 
+ * N.B: Do not give any empty lines in input file, input file must also not have empty lines at the end
+ *      Labels are used without colons, i.e uuoo is a label and will be used as uuoo
+ *      kkoo: is a label and will be used as kkoo:  e.g jmp kkoo: and not jmp kkoo
+ *      label name should not have space in between 
+ */
+
+package coa_pipelining;
+
+import java.util.Scanner;
+import java.io.*;
+
+public class Assembler {
+
+	static String IfileName = "src/input.txt";
+	static String OfileName = "src/output.txt";
+	static PrintWriter out = null;
+	static int PC = 0;
+	static int[] memory;
+	static int SP = 0;
+	static int[] register;
+
+	public static void main(String args[]) {
+		File Ifile = new File(IfileName);
+		File Ofile = new File(OfileName);
+		register = new int[8];
+		memory = new int[128];		
+		SP = memory.length;
+		
+		
+		print("\nRead comments in source code to know how to use.\n\nMemory size is 64(from 0 to 63), to add data in memory give memory address\n");
+		print("and then data value(separated by sapce(give memory add = 100 to exit\n)");
+		Scanner ini  =new Scanner(System.in);
+		int mA = ini.nextInt();
+		int mV=0;
+		while(mA!=100){	
+			mV=ini.nextInt();
+			if(mA>=0 && mA<64)
+				memory[mA]=mV;
+			else{
+				print("Wrong memory address..try again or enter 100 to execute your code\n");
+			}
+			mA=ini.nextInt();
+		}
+
+		if (!Ifile.exists()) {
+			System.out
+					.println("Input file(Assembly code) doesn't exist..!!\nExiting..");
+			System.exit(1);
+		}
+
+		Scanner inFile = null;
+		try {
+			inFile = new Scanner(Ifile);
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		try {
+			out = new PrintWriter(Ofile);
+			ToMachine machineCode = new ToMachine();
+			ToMachine.labels = new label[15];
+			
+			while (inFile.hasNextLine()) {
+				machineCode.fillLabels(inFile.nextLine());
+			}
+			
+			
+			
+			inFile = new Scanner(Ifile);
+			
+			while (inFile.hasNextLine()) {
+				out.println(machineCode.AssemblyToMachine(inFile.nextLine()));
+			}
+			
+		
+
+			out.close();
+			inFile.close();
+		} catch (FileNotFoundException E) {
+			print("Error ...output file not created successfully\n\nExiting..");
+			System.exit(2);
+		}
+
+		// Fetching object code in RAM
+		try {
+			inFile = new Scanner(Ofile);
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			print("Object code isn't found\n Exiting..");
+			System.exit(3);
+		}
+		int inslength = ToMachine.lAdd;
+		String Instruction[] = new String[inslength];
+		int i = 0;
+		while (inFile.hasNextLine()) {
+			Instruction[i] = inFile.nextLine();
+			i++;
+		}
+		inFile.close();
+		
+		//for(i=0;i<inslength;i++)
+		//	print(Instruction[i]+"\n");
+		
+		// Fetching Instructions and decoding
+		
+		while (PC < inslength) {
+			if(SP < 64 || SP > 128){
+				print("Stack overflow...\nExiting...");
+				System.exit(3);
+			}
+			String ins = Instruction[PC];
+			PC++;
+			decode(ins);
+		}
+
+		//Show register contents
+		showRegister();
+		
+		// Show Memory contents
+		showMemory();
+		
+		//Show stack Contents
+		
+		showStack();
+		
+		
+	}
+
+	
+
+	public static void print(String s) {
+		System.out.print(s);
+	}
+
+	public static void decode(String str) {
+		String opcode, restCode;
+		opcode = str.substring(0, 4);
+		restCode = str.substring(4, 16);
+		int[] op = new int[3];
+
+		switch (opcode) {
+		case "0000":
+		case "0001":
+		case "0010":
+		case "0011":
+			op[0] = Integer.parseInt(restCode.substring(0, 3), 2);
+			op[1] = Integer.parseInt(restCode.substring(3, 6), 2);
+			op[2] = Integer.parseInt(restCode.substring(6, 9), 2);
+			if (opcode.contentEquals("0000"))
+				register[op[0]] = register[op[1]] + register[op[2]];
+			if (opcode.contentEquals("0001"))
+				register[op[0]] = register[op[1]] - register[op[2]];
+			if (opcode.contentEquals("0010"))
+				register[op[0]] = register[op[1]] * register[op[2]];
+			if (opcode.contentEquals("0011"))
+				register[op[0]] = register[op[1]] / register[op[2]];
+			break;
+
+		case "0100":
+		case "0101":
+			op[0] = Integer.parseInt(restCode.substring(0, 3), 2);
+			op[1] = Integer.parseInt(restCode.substring(3, 6), 2);
+			op[2] = Integer.parseInt(restCode.substring(6, 12), 2);
+			if (opcode.contentEquals("0100"))
+				register[op[0]] = register[op[1]] << op[2];
+			if (opcode.contentEquals("0101"))
+				register[op[0]] = register[op[1]] >> op[2];
+			break;
+			
+		case "0110":
+			op[0]=Integer.parseInt(restCode.substring(0, 12), 2);
+			register[1] = op[0];
+			break;
+			
+		case "0111":
+		case "1000":
+			op[0]=Integer.parseInt(restCode.substring(0, 12), 2);
+			if(opcode.contentEquals("0111"))PC = op[0];
+			if(opcode.contentEquals("1000"))register[7] = PC;PC=op[0];
+			break;
+			
+		case "1001":
+			op[0] = Integer.parseInt(restCode.substring(0, 3), 2);
+			op[1] = Integer.parseInt(restCode.substring(3, 6), 2);
+			register[op[0]] = register[op[1]];
+			break;
+			
+		case "1010":
+			op[0] = Integer.parseInt(restCode.substring(0, 3), 2);
+			op[1] = Integer.parseInt(restCode.substring(3, 12), 2);
+			register[op[0]] = op[1];
+			break;
+			
+		case "1011":
+			op[0] = Integer.parseInt(restCode.substring(0, 3), 2);
+			PC = register[op[0]];
+			break;
+
+		case "1100":
+		case "1101":
+			op[0] = Integer.parseInt(restCode.substring(0, 3), 2);
+			op[1] = Integer.parseInt(restCode.substring(3, 9), 2);
+			if(opcode.contentEquals("1100"))register[op[0]] = memory[op[1]];
+			if(opcode.contentEquals("1101"))memory[op[1]]  = register[op[0]];
+			break;				
+			
+		case "1110":
+			if(register[0]==1){
+				op[0] = Integer.parseInt(restCode, 2);
+				PC = op[0];
+			}
+			break;
+			
+		case "1111":
+			if(!restCode.substring(10, 12).contentEquals("11")){
+				op[0] = Integer.parseInt(restCode.substring(0, 3), 2);
+				op[1] = Integer.parseInt(restCode.substring(3, 6), 2);
+				register[0]=0;
+				if(register[op[0]]<register[op[1]])
+					register[0]=1;
+			}
+			break;
+			
+			
+			
+		}
+	}
+	
+	
+	
+	
+	private static void showRegister(){
+		print("Final register contents:\n");
+		for(int i=0;i<8;i++)
+			print("R"+i+": "+register[i]+"\n");
+		print("SP: "+SP+"\nPC: "+PC+"\n\n\n");
+	}
+	
+	
+	private static void showStack() {
+		// TODO Auto-generated method stub
+		print("Final stack contents:\n");
+		for(int i=64;i<128;i++)
+			print("S"+(i-64)+": "+memory[i]+"\n");
+		print("\n\n");
+	}
+
+	private static void showMemory() {
+		// TODO Auto-generated method stub
+		print("Final memory contents:\n");
+		for(int i=0;i<64;i++)
+			print("M"+i+": "+memory[i]+"\n");
+		print("\n\n\n");
+	}
+	
+	
+	
+}
