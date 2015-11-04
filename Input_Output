@@ -1,0 +1,30 @@
+/*  Following code is given as input file to program to find factorial of 10
+*   Instruction sets are defined in code itself(in comments)
+*/
+
+movi 2 10
+movi 6 1
+movi 7 1
+fact
+slt 2 7
+beq exit
+mul 6 6 2
+sub 2 2 7
+jmp fact
+exit
+
+
+/* Corresponding machine code generated for given input is stored in output file.
+*  For above input machine code generated is
+*/
+
+1010010000001010
+1010110000000001
+1010111000000001
+1111111111111111
+1111010111000000
+1110000000001010
+0010110110010000
+0001010010111000
+0111000000000100
+1111111111111111
